@@ -380,8 +380,8 @@ def parse(file_path):
     return doc
 
 
-def command_delete(filanem, doc, args):
-    """python srt.py [filename] delete [start] [end]
+def command_delete(args):
+    """python srt.py delete [filename] [start] [end]
     
     deletes the segment described by [start] [end]
 
@@ -390,6 +390,13 @@ def command_delete(filanem, doc, args):
 
     this prints the new file to stdout
     """
+    if not args:
+        raise ValueError("delete must be called with a filename argument")
+    
+    filename = args.pop(0)
+    doc = parse(filename)
+        
+    
     start_string = args[0]
     end_string = args[1]
     
@@ -412,8 +419,8 @@ def command_delete(filanem, doc, args):
     print result
     return result
 
-def command_split(filename, doc, args):
-    """python srt.py [infile] split [timestamp]+
+def command_split(args):
+    """python srt.py split [filename] [timestamp]+
     
     splits the file at the given timestamps
     timestamp has format HH:MM:SS,MMM
@@ -424,7 +431,13 @@ def command_split(filename, doc, args):
     with the digit ranging up
     """
     if not args:
-        raise ValueError("Split must be called with a timestamp")
+        raise ValueError("Split must be given arguments!")
+    
+    filename = args.pop(0)
+    doc = parse(filename)
+    
+    if not args:
+        raise ValueError("Split must be called with at least one timestamp")
     
     out_list = []
     current = doc
@@ -453,11 +466,17 @@ def command_split(filename, doc, args):
     
     
     
-def command_help(command=None):
+def command_help(args):
     """python srt.py help [command]
     
     Prints usage information
     """
+    try:
+        command = args[0]
+    except IndexError:
+        command = None
+    
+    
     if command:
         try:
             help_target_function = command_dict[command]
@@ -490,27 +509,20 @@ command_dict = dict(commands)
 if __name__ == '__main__':
 
     try:
-        
-        filename = argv[1]
-        command = argv[2]
-        args = argv[3:]
+        command = argv[1]
+        args = argv[2:]
     except IndexError:
-        if filename == "help":
+        if command == "help":
             command_help()
         else:
             print """
 Usage:
-python srt.py [filename] [command] [args]
+python srt.py [command] [args]
 
 try python srt.py help for info
 """
         sys.exit(1)
-    
-    if filename == "help":
-        command_help(command)
 
-    else:
-        doc = parse(filename)
     
     try:
         command_function = command_dict[command]
@@ -518,4 +530,4 @@ try python srt.py help for info
         print "command not found..\n\ntry python srt.py help for info"
         sys.exit(1)
     
-    command_function(filename, doc, args)
+    command_function(args)
