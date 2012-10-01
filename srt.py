@@ -339,7 +339,7 @@ class SRTDocument(object):
             'start' : start,
             'end' : end,
             'text' : text,
-        })
+        }, indent=4)
             
     
         
