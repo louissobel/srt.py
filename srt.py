@@ -380,8 +380,19 @@ def parse(file_path):
     return doc
 
 
-def command_delete(doc, start_string, end_string):
+def command_delete(filanem, doc, args):
+    """python srt.py [filename] delete [start] [end]
+    
+    deletes the segment described by [start] [end]
 
+    start and end should be a HH:MM:SS,MMM timestamp
+    they can also be the words 'start' or 'end'
+
+    this prints the new file to stdout
+    """
+    start_string = args[0]
+    end_string = args[1]
+    
     if start_string == 'start':
         start = Timecode(0)
     else:
@@ -397,10 +408,84 @@ def command_delete(doc, start_string, end_string):
     gone, right = right.split(end)
     
 
-    return left.add(right).normalize()
+    result = left.add(right).normalize()
+    print result
+    return result
+
+def command_split(filename, doc, args):
+    """python srt.py [infile] split [timestamp]+
     
+    splits the file at the given timestamps
+    timestamp has format HH:MM:SS,MMM
+    
+    The timestamps should be in increasing order!
+    
+    writes the files out with format [infile]_0.srt
+    with the digit ranging up
+    """
+    if not args:
+        raise ValueError("Split must be called with a timestamp")
+    
+    out_list = []
+    current = doc
+    for arg in args:
+        timecode = Timecode.from_string(arg)
+        left, right = current.split(timecode)
+        out_list.append(left)
+        current = right
+    out_list.append(current)
+    
+    out_list = [srt_document.normalize() for srt_document in out_list]
+    
+    # ok, now we have to print them
+    
+    # lets get our format... lets strip a .srt if there is one
+    if filename.endswith('.srt'):
+        filename = filename[:-4]
+        
+    FORMAT_STRING = "%s_%%d.srt" % filename
+    
+    for index, srt_document in enumerate(out_list):
+        out_file_handle = open(FORMAT_STRING % index, 'w')
+        out_file_handle.write(str(srt_document))
+        out_file_handle.close()
+    
+    
+    
+    
+def command_help(command=None):
+    """python srt.py help [command]
+    
+    Prints usage information
+    """
+    if command:
+        try:
+            help_target_function = command_dict[command]
+        except KeyError:
+            print "command %s not found" % command
+        else:
+            print help_target_function.__doc__
+            return
+    
+    print "Commands:"
+    for command, function in commands:
+        print command
+    
+    print "-"*10
+    
+    for command, function in commands:
+        print "%s:" % command
+        print function.__doc__
+        print
+        
 
+commands = [
+    ('delete', command_delete),
+    ('split', command_split),
+    ('help', command_help),
+]
 
+command_dict = dict(commands)
 
 if __name__ == '__main__':
 
@@ -408,24 +493,29 @@ if __name__ == '__main__':
         
         filename = argv[1]
         command = argv[2]
-    
-        start_string = argv[3]
-        end_string = argv[4]
+        args = argv[3:]
     except IndexError:
-        print """
+        if filename == "help":
+            command_help()
+        else:
+            print """
 Usage:
-python srt.py delete [start] [end]
+python srt.py [filename] [command] [args]
 
-start and end should be a HH:MM:SS,MMM timestamp
-they can also be the words 'start' or 'end'
-
-this prints the new file to stdout
+try python srt.py help for info
 """
         sys.exit(1)
     
+    if filename == "help":
+        command_help(command)
+
+    else:
+        doc = parse(filename)
     
-    doc = parse(filename)
+    try:
+        command_function = command_dict[command]
+    except KeyError:
+        print "command not found..\n\ntry python srt.py help for info"
+        sys.exit(1)
     
-    cut = command_delete(doc, start_string, end_string)
-    
-    print cut
+    command_function(filename, doc, args)
