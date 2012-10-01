@@ -19,7 +19,7 @@ import re
 from sys import argv
 from itertools import count
 import sys
-
+import json
 
 @functools.total_ordering
 class Timecode(object):
@@ -152,7 +152,10 @@ class SRTFrame(object):
         end = self.end + time
 
         return SRTFrame(start, end, self.lines[:])
-        
+    
+    def text(self):
+        return '\n'.join(self.lines)
+    
     def __str__(self):
         HEADERFORMAT = "%s --> %s\n"
         
@@ -323,7 +326,21 @@ class SRTDocument(object):
             out += "\n"
             index += 1
         return out
-        
+    
+    def json(self):
+        start = []
+        end = []
+        text = []
+        for frame in self.frames:
+            start.append(frame.start.milliseconds())
+            end.append(frame.end.milliseconds())
+            text.append(frame.text())
+        return json.dumps({
+            'start' : start,
+            'end' : end,
+            'text' : text,
+        })
+            
     
         
             
@@ -335,16 +352,52 @@ class SRTDocument(object):
 # .srt parsing
 #################################################
 
-def parse(file_path):
-    """
-    returns an SRTDocument
-    """
-    
-    TIMECODE_SEP    = re.compile('[ \->]*')
+def get_file_type(file_path):
+    if file_path.endswith('.sjson'):
+        return 'sjson'
+    elif file_path.endswith('.srt'):
+        return 'srt'
+    else:
+        #fallback
+        return 'srt'
 
-    
+
+
+def parse(file_path):
+    type_parse_functions = {
+        'sjson' : parse_sjson,
+        'srt' : parse_srt,
+    }
     file_handle = open(file_path, 'r')
+    return type_parse_functions[get_file_type(file_path)](file_handle)
+
+def parse_sjson(file_handle):
+    """
+    returns an SRTDocuement from a sjson file
+    """
+    json_data = json.load(file_handle)
     
+    doc = SRTDocument()
+    
+    starts = json_data['start']
+    ends = json_data['end']
+    texts = json_data['text']
+
+    for frame_index in range(len(starts)):
+        start = Timecode(starts[frame_index])
+        end = Timecode(ends[frame_index])
+        text = texts[frame_index]
+        doc = doc.add_frame(SRTFrame(start, end, text.split('\n')))
+    return doc
+    
+
+
+def parse_srt(file_handle):
+    """
+    returns an SRTDocument from a .srt file
+    """
+    
+    TIMECODE_SEP    = re.compile('[ \->]*')   
     
     state = 'waiting' # or timerange or lines
     
@@ -462,7 +515,70 @@ def command_split(args):
         out_file_handle = open(FORMAT_STRING % index, 'w')
         out_file_handle.write(str(srt_document))
         out_file_handle.close()
+        
+def command_srt2sjson(args):
+    """python srt.py srt2sjson [filename | -]
     
+    converts the file name given to a sjson file
+    accepts input from stdin by giving a dash
+    
+    prints result to stdout
+    """
+    
+    try:
+        filename = args[0]
+    except IndexError:
+        filename = '-'
+        
+    if filename == '-':
+        file_handle = sys.stdin
+    else:
+        file_handle = open(filename, 'r')
+        
+    doc = parse_srt(file_handle)
+    print doc.json()
+    
+def command_sjson2srt(args):
+    """python srt.py srt2sjson [filename | -]
+
+    converts the file name given to a sjson file
+    accepts input from stdin by giving a dash
+
+    prints result to stdout
+    """
+
+    try:
+        filename = args[0]
+    except IndexError:
+        filename = '-'
+
+    if filename == '-':
+        file_handle = sys.stdin
+    else:
+        file_handle = open(filename, 'r')
+
+    doc = parse_sjson(file_handle)
+    print str(doc)
+
+        
+    
+
+def command_cat(args):
+    """python srt.py cat [file1] [file2]...
+    
+    Concatenates the given SRT files (in the order given)
+    and prints the result to stdout.
+    """
+    
+    if not args:
+        raise ValueError("Cannot concatenate no files!")
+
+    first = args[0]
+    output_type = get_file_type(first)
+
+    srt_docs = []
+    for filename in args:
+        srt_docs.append(parse(filename))
     
     
     
@@ -501,6 +617,8 @@ def command_help(args):
 commands = [
     ('delete', command_delete),
     ('split', command_split),
+    ('srt2sjson', command_srt2sjson),
+    ('sjson2srt', command_sjson2srt),
     ('help', command_help),
 ]
 
