@@ -53,10 +53,10 @@ class Timecode(object):
         # 1:2:3     => 01:02:03
         # also accept "." instead of "," as millsecond separator
         match   = TIMECODE_RE.match(tc)
-        try: 
-            assert match is not None
-        except AssertionError:
-            print tc
+        
+        if match is None:
+            raise ValueError("Bad input string to timecode")
+        
         hh,mm,ss,ms = map(lambda x: 0 if x==None else int(x), match.groups())
         return cls(((hh*3600 + mm*60 + ss) * 1000 + ms) * sign)
      
@@ -168,7 +168,7 @@ class SRTFrame(object):
         return out
         
     ## total ordering is by start time.
-    ## should be OK  
+    ## should be OK 
     def __eq__(self, other):
         return self.start == other.start
         
@@ -273,8 +273,6 @@ class SRTDocument(object):
         
         # we have at least one
         start = self.frames[0].start.milliseconds()
-        
-        
         if start: # does not equal 0
              return SRTDocument([frame.shift(start * -1) for frame in self.frames])
 
@@ -308,7 +306,7 @@ class SRTDocument(object):
             raise ValueError("Other cannot start before this SRTDocument ends! (in add)")
             
         shift_duration = self_end - other_start
-        other.shift(shift_duration) #other now starts right when self ends. so we can just glob them
+        other = other.shift(shift_duration) #other now starts right when self ends. so we can just glob them
         
         for frame in other.frames:
             self = self.add_frame(frame)
@@ -339,14 +337,7 @@ class SRTDocument(object):
             'start' : start,
             'end' : end,
             'text' : text,
-        }, indent=4)
-            
-    
-        
-            
-        
-    
-               
+        }, indent=4)             
 
 #################################################
 # .srt parsing
@@ -360,8 +351,6 @@ def get_file_type(file_path):
     else:
         #fallback
         return 'srt'
-
-
 
 def parse(file_path):
     type_parse_functions = {
@@ -396,8 +385,7 @@ def parse_srt(file_handle):
     """
     returns an SRTDocument from a .srt file
     """
-    
-    TIMECODE_SEP    = re.compile('[ \->]*')   
+    TIMECODE_SEP = re.compile('[ \->]*')   
     
     state = 'waiting' # or timerange or lines
     
