@@ -508,6 +508,7 @@ def command_srt2sjson(args):
     """python srt.py srt2sjson [filename | -]
     
     converts the file name given to a sjson file
+    (from a srt file)
     accepts input from stdin by giving a dash
     
     prints result to stdout
@@ -527,9 +528,10 @@ def command_srt2sjson(args):
     print doc.json()
     
 def command_sjson2srt(args):
-    """python srt.py srt2sjson [filename | -]
+    """python srt.py sjson2srt [filename | -]
 
-    converts the file name given to a sjson file
+    converts the file name given to a srt file
+    (from a sjson file)
     accepts input from stdin by giving a dash
 
     prints result to stdout
