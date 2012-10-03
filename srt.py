@@ -428,6 +428,9 @@ def command_delete(args):
 
     start and end should be a HH:MM:SS,MMM timestamp
     they can also be the words 'start' or 'end'
+    
+    the start time of the new file will always be the same
+    as the start time of the original one
 
     this prints the new file to stdout
     """
@@ -436,13 +439,17 @@ def command_delete(args):
     
     filename = args.pop(0)
     doc = parse(filename)
-        
+    
+    if doc.frames:
+        input_start_time = doc.frames[0].start
+    else:
+        input_start_time = Timecode(0) # it doesn't matter
     
     start_string = args[0]
     end_string = args[1]
     
     if start_string == 'start':
-        start = Timecode(0)
+        start = input_start_time
     else:
         start =  Timecode.from_string(start_string)    
     
@@ -456,7 +463,22 @@ def command_delete(args):
     gone, right = right.split(end)
     
 
-    result = left.add(right).normalize()
+    result = left.add(right)
+    # ok...  i promise that the start time of the result will be the start time of the input
+    # this is pretty ok. it will either be the start time already (in the case of an interiror delete)
+    # or it will be later (in the case of a delete starting at start or earlier)
+    # so if we store the original start time, this is fine
+    if result.frames:
+        # we only have to even worry about the shift if there is a result!
+        result_start_time = result.frames[0].start
+        diff = (result_start_time - input_start_time).milliseconds()
+        
+        if diff < 0:
+            raise AssertionError("Start time of the result should never be before start time of the input!")
+        elif diff > 0:
+            # then we have to do a shift
+            result = result.shift(-1 * diff)
+    
     print result
     return result
 
@@ -470,6 +492,9 @@ def command_split(args):
     
     writes the files out with format [infile]_0.srt
     with the digit ranging up
+    
+    ALL RESULTING FILES WILL BE SHIFTED TO START AT 0
+    we'll see how use cases develop for this
     """
     if not args:
         raise ValueError("Split must be given arguments!")
